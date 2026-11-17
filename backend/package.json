@@ -1,0 +1,14 @@
+{
+  "name": "candidate-management-db",
+  "private": true,
+  "description": "Prisma schema management for the Candidate Management System database",
+  "scripts": {
+    "db:validate": "prisma validate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio"
+  },
+  "devDependencies": {
+    "prisma": "7.10.1"
+  }
+}

@@ -1,0 +1,29 @@
+datasource db {
+  provider = "postgresql"
+}
+
+enum CandidateStatus {
+  NEW
+  SCREENING
+  INTERVIEWING
+  OFFERED
+  HIRED
+  REJECTED
+}
+
+model Candidate {
+  id               Int             @id @default(autoincrement())
+  firstName        String          @map("first_name")
+  lastName         String          @map("last_name")
+  email            String          @unique
+  phone            String?
+  skills           String[]
+  experienceYears  Int             @default(0) @map("experience_years")
+  currentCompany   String?         @map("current_company")
+  currentLocation  String?         @map("current_location")
+  status           CandidateStatus @default(NEW)
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @default(now()) @updatedAt @map("updated_at")
+
+  @@map("candidate")
+}

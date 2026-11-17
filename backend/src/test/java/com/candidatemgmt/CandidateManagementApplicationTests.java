@@ -1,0 +1,13 @@
+package com.candidatemgmt;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class CandidateManagementApplicationTests {
+
+	@Test
+	void contextLoads() {
+	}
+
+}

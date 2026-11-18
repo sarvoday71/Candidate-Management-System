@@ -40,7 +40,15 @@ function buildQuery(filters) {
   return qs ? `?${qs}` : ''
 }
 
-export const listCandidates = (filters = {}, signal) => request(`${BASE}${buildQuery(filters)}`, { signal })
+// Resolves to { content, page, size, totalElements, totalPages }.
+export function listCandidates(filters, page, size, signal) {
+  const query = buildQuery(filters)
+  const paging = `page=${page}&size=${size}`
+  return request(`${BASE}${query ? `${query}&${paging}` : `?${paging}`}`, { signal })
+}
+
+// Resolves to { total, averageExperience, byStatus: { NEW: n, ... } }.
+export const getStats = (signal) => request(`${BASE}/stats`, { signal })
 
 export const createCandidate = (data) => request(BASE, { method: 'POST', body: JSON.stringify(data) })
 

@@ -3,10 +3,11 @@ package com.candidatemgmt.controller;
 import com.candidatemgmt.dto.CandidateRequest;
 import com.candidatemgmt.dto.CandidateResponse;
 import com.candidatemgmt.dto.CandidateSearchCriteria;
+import com.candidatemgmt.dto.CandidateStats;
+import com.candidatemgmt.dto.PageResponse;
 import com.candidatemgmt.service.CandidateService;
 import jakarta.validation.Valid;
 import java.net.URI;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -33,8 +35,16 @@ public class CandidateController {
     }
 
     @GetMapping
-    public List<CandidateResponse> getAll(@ModelAttribute CandidateSearchCriteria criteria) {
-        return service.search(criteria);
+    public PageResponse<CandidateResponse> search(
+            @ModelAttribute CandidateSearchCriteria criteria,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "" + CandidateService.DEFAULT_PAGE_SIZE) int size) {
+        return service.search(criteria, page, size);
+    }
+
+    @GetMapping("/stats")
+    public CandidateStats stats() {
+        return service.stats();
     }
 
     @GetMapping("/{id}")

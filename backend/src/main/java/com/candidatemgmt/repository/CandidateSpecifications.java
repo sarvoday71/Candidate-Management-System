@@ -2,12 +2,18 @@ package com.candidatemgmt.repository;
 
 import com.candidatemgmt.dto.CandidateSearchCriteria;
 import com.candidatemgmt.model.Candidate;
-import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import org.hibernate.query.criteria.HibernateCriteriaBuilder;
 import org.springframework.data.jpa.domain.Specification;
 
+/**
+ * Every filter is written so PostgreSQL can answer it from an index (see prisma/schema.prisma):
+ * text filters use ILIKE on the raw column (trigram GIN indexes), skills use array containment
+ * (GIN on skills_search), experience and status use btree indexes.
+ */
 public final class CandidateSpecifications {
 
     private static final char ESCAPE = '\\';
@@ -27,37 +33,36 @@ public final class CandidateSpecifications {
      */
     public static Specification<Candidate> search(CandidateSearchCriteria criteria) {
         return (root, query, cb) -> {
+            HibernateCriteriaBuilder hcb = (HibernateCriteriaBuilder) cb;
             List<Predicate> predicates = new ArrayList<>();
 
             if (hasText(criteria.name())) {
                 for (String word : criteria.name().trim().split("\\s+")) {
-                    String pattern = "%" + escape(word) + "%";
+                    String pattern = contains(word);
                     predicates.add(cb.or(
-                            cb.like(cb.lower(root.get("firstName")), pattern, ESCAPE),
-                            cb.like(cb.lower(root.get("lastName")), pattern, ESCAPE)));
+                            hcb.ilike(root.get("firstName"), pattern, ESCAPE),
+                            hcb.ilike(root.get("lastName"), pattern, ESCAPE)));
                 }
             }
 
             if (hasText(criteria.email())) {
-                predicates.add(cb.like(cb.lower(root.get("email")),
-                        "%" + escape(criteria.email().trim()) + "%", ESCAPE));
+                predicates.add(hcb.ilike(root.get("email"), contains(criteria.email().trim()), ESCAPE));
             }
 
             if (hasText(criteria.location())) {
-                predicates.add(cb.like(cb.lower(root.get("currentLocation")),
-                        "%" + escape(criteria.location().trim()) + "%", ESCAPE));
+                predicates.add(hcb.ilike(root.get("currentLocation"), contains(criteria.location().trim()), ESCAPE));
             }
 
             if (criteria.skills() != null) {
-                // ",java,spring," LIKE '%,java,%' matches whole skills only, so "java" never matches "javascript"
-                Expression<String> joined = cb.concat(
-                        cb.concat(",", cb.lower(cb.function("array_to_string", String.class,
-                                root.get("skills"), cb.literal(",")))),
-                        ",");
-                for (String skill : criteria.skills()) {
-                    if (hasText(skill)) {
-                        predicates.add(cb.like(joined, "%," + escape(skill.trim()) + ",%", ESCAPE));
-                    }
+                String[] wanted = criteria.skills().stream()
+                        .filter(CandidateSpecifications::hasText)
+                        .map(s -> s.trim().toLowerCase(Locale.ROOT))
+                        .distinct()
+                        .toArray(String[]::new);
+                if (wanted.length > 0) {
+                    // One bound array parameter, cast to text[] to match the column; `@>` is served by the GIN index.
+                    predicates.add(cb.isTrue(hcb.sql("? @> cast(? as text[])", Boolean.class,
+                            root.get("skillsSearch"), hcb.value(wanted))));
                 }
             }
 
@@ -81,10 +86,11 @@ public final class CandidateSpecifications {
         return value != null && !value.isBlank();
     }
 
-    private static String escape(String value) {
-        return value.toLowerCase()
+    private static String contains(String value) {
+        String escaped = value
                 .replace("\\", "\\\\")
                 .replace("%", "\\%")
                 .replace("_", "\\_");
+        return "%" + escaped + "%";
     }
 }

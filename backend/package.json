@@ -4,7 +4,9 @@
   "description": "Prisma schema management for the Candidate Management System database",
   "scripts": {
     "db:validate": "prisma validate",
+    "db:extensions": "prisma db execute --file prisma/sql/01-extensions.sql",
     "db:push": "prisma db push",
+    "db:backfill": "prisma db execute --file prisma/sql/02-backfill-normalized-columns.sql",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio"
   },

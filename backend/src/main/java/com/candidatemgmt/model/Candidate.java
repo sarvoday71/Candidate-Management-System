@@ -7,10 +7,14 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -36,6 +40,7 @@ public class Candidate {
     @Column(name = "last_name", nullable = false)
     private String lastName;
 
+    // Stored lowercase (see normalize()), so the unique index also rejects case-variant duplicates.
     @Column(nullable = false, unique = true)
     private String email;
 
@@ -44,6 +49,11 @@ public class Candidate {
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(columnDefinition = "text[]", nullable = false)
     private List<String> skills = new ArrayList<>();
+
+    // Lowercased copy of skills, used only for indexed filtering; never exposed by the API.
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "skills_search", columnDefinition = "text[]", nullable = false)
+    private List<String> skillsSearch = new ArrayList<>();
 
     @Column(name = "experience_years", nullable = false)
     private Integer experienceYears = 0;
@@ -67,4 +77,11 @@ public class Candidate {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    @PreUpdate
+    void normalize() {
+        email = email.trim().toLowerCase(Locale.ROOT);
+        skillsSearch = skills.stream().map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.toCollection(ArrayList::new));
+    }
 }

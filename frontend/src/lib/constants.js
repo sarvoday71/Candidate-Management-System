@@ -7,6 +7,8 @@ export const STATUSES = [
   { value: 'REJECTED', label: 'Rejected', badge: 'bg-rose-50 text-rose-700 ring-rose-600/20', dot: 'bg-rose-500' },
 ]
 
+export const PAGE_SIZE = 20
+
 export const STATUS_BY_VALUE = Object.fromEntries(STATUSES.map((s) => [s.value, s]))
 
 export const EMPTY_FILTERS = {

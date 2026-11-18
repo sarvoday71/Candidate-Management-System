@@ -1,3 +1,4 @@
+// The pg_trgm extension must exist before `db push` (see prisma/sql/01-extensions.sql).
 datasource db {
   provider = "postgresql"
 }
@@ -12,18 +13,31 @@ enum CandidateStatus {
 }
 
 model Candidate {
-  id               Int             @id @default(autoincrement())
-  firstName        String          @map("first_name")
-  lastName         String          @map("last_name")
-  email            String          @unique
-  phone            String?
-  skills           String[]
-  experienceYears  Int             @default(0) @map("experience_years")
-  currentCompany   String?         @map("current_company")
-  currentLocation  String?         @map("current_location")
-  status           CandidateStatus @default(NEW)
-  createdAt        DateTime        @default(now()) @map("created_at")
-  updatedAt        DateTime        @default(now()) @updatedAt @map("updated_at")
+  id              Int             @id @default(autoincrement())
+  firstName       String          @map("first_name")
+  lastName        String          @map("last_name")
+  // Always stored lowercase by the app, so the unique index below is effectively case-insensitive.
+  email           String          @unique
+  phone           String?
+  skills          String[]        @default([])
+  // Lowercased copy of `skills`, maintained by the app. Lets the skills filter use a GIN index
+  // (`@>` containment) while `skills` keeps the user's original casing for display.
+  skillsSearch    String[]        @default([]) @map("skills_search")
+  experienceYears Int             @default(0) @map("experience_years")
+  currentCompany  String?         @map("current_company")
+  currentLocation String?         @map("current_location")
+  status          CandidateStatus @default(NEW)
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at")
 
+  // Trigram GIN indexes make `ILIKE '%text%'` use an index instead of scanning the table.
+  @@index([firstName(ops: raw("gin_trgm_ops"))], type: Gin, map: "candidate_first_name_trgm_idx")
+  @@index([lastName(ops: raw("gin_trgm_ops"))], type: Gin, map: "candidate_last_name_trgm_idx")
+  @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "candidate_email_trgm_idx")
+  @@index([currentLocation(ops: raw("gin_trgm_ops"))], type: Gin, map: "candidate_location_trgm_idx")
+  @@index([skillsSearch], type: Gin, map: "candidate_skills_search_gin_idx")
+  // Serves status filters, status + experience range, and lets the stats query be an index-only scan.
+  @@index([status, experienceYears], map: "candidate_status_experience_idx")
+  @@index([experienceYears], map: "candidate_experience_idx")
   @@map("candidate")
 }

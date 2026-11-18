@@ -15,11 +15,12 @@ function StatCard({ icon: Icon, label, value, hint, tone }) {
   )
 }
 
-export default function StatsCards({ candidates, loading }) {
-  const total = candidates.length
-  const inPipeline = candidates.filter((c) => !['HIRED', 'REJECTED'].includes(c.status)).length
-  const hired = candidates.filter((c) => c.status === 'HIRED').length
-  const avgExp = total ? (candidates.reduce((sum, c) => sum + (c.experienceYears || 0), 0) / total).toFixed(1) : '0'
+export default function StatsCards({ stats, loading }) {
+  const total = stats?.total ?? 0
+  const hired = stats?.byStatus?.HIRED ?? 0
+  const rejected = stats?.byStatus?.REJECTED ?? 0
+  const inPipeline = total - hired - rejected
+  const avgExp = (stats?.averageExperience ?? 0).toFixed(1)
   const show = (v) => (loading ? <span className="inline-block h-8 w-12 animate-pulse rounded-lg bg-slate-100 align-middle" /> : v)
 
   return (

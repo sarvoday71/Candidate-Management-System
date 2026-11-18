@@ -7,6 +7,7 @@
     "db:extensions": "prisma db execute --file prisma/sql/01-extensions.sql",
     "db:push": "prisma db push",
     "db:backfill": "prisma db execute --file prisma/sql/02-backfill-normalized-columns.sql",
+    "db:test-schema": "prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script --output src/test/resources/schema.sql",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio"
   },

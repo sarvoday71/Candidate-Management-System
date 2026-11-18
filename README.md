@@ -20,6 +20,7 @@ A full-stack application for tracking candidates through a hiring pipeline. A **
 - [Data model](#data-model)
 - [Performance design](#performance-design)
 - [Frontend](#frontend)
+- [Testing](#testing)
 - [Development workflow](#development-workflow)
 - [Troubleshooting](#troubleshooting)
 - [Known limitations](#known-limitations)
@@ -104,22 +105,27 @@ Candidate-Management-System/
 │   ├── prisma/
 │   │   ├── schema.prisma                Table, enum and index definitions
 │   │   └── sql/                         One-off SQL: pg_trgm extension, data backfill
-│   └── src/main/
-│       ├── java/com/candidatemgmt/
-│       │   ├── config/                  CacheConfig
-│       │   ├── controller/              CandidateController, HelloController
-│       │   ├── dto/                     CandidateRequest/Response/SearchCriteria/Stats, PageResponse
-│       │   ├── exception/               NotFound, DuplicateEmail, GlobalExceptionHandler
-│       │   ├── model/                   Candidate, CandidateStatus
-│       │   ├── repository/              CandidateRepository, CandidateSpecifications
-│       │   └── service/                 CandidateService
-│       └── resources/application.properties
+│   ├── src/main/
+│   │   ├── java/com/candidatemgmt/
+│   │   │   ├── config/                  CacheConfig
+│   │   │   ├── controller/              CandidateController, HelloController
+│   │   │   ├── dto/                     CandidateRequest/Response/SearchCriteria/Stats, PageResponse
+│   │   │   ├── exception/               NotFound, DuplicateEmail, GlobalExceptionHandler
+│   │   │   ├── model/                   Candidate, CandidateStatus
+│   │   │   ├── repository/              CandidateRepository, CandidateSpecifications
+│   │   │   └── service/                 CandidateService
+│   │   └── resources/application.properties
+│   └── src/test/
+│       ├── java/com/candidatemgmt/      Unit, web-layer and integration tests
+│       └── resources/schema.sql         Test database schema (generated from schema.prisma)
+├── docs/screenshots/                    Images used in this README
 └── frontend/
-    ├── vite.config.js                   Dev server and /api proxy
+    ├── vite.config.js                   Dev server, /api proxy and test configuration
     └── src/
         ├── App.jsx                      State, data fetching, composition
         ├── components/                  FilterBar, CandidateTable, CandidateFormModal, Pagination, ...
-        └── lib/                         api client, constants, formatting, shared styles
+        ├── lib/                         api client, constants, formatting, shared styles
+        └── test/                        Test setup and an in-memory fake of the API (tests sit next to the code as *.test.js(x))
 ```
 
 ## Getting started
@@ -429,6 +435,43 @@ A Vite + React single-page app in `frontend/`.
 
 Production build: `npm run build` outputs static files to `frontend/dist`. In production the app must be served from the same origin as the API (or the backend needs CORS configured), because the `/api` proxy exists only in the dev server.
 
+## Testing
+
+| Suite | Command | Tests |
+|---|---|---|
+| Backend (JUnit 5, Mockito, MockMvc) | `cd backend && ./mvnw test` | 129 |
+| Frontend (Vitest, Testing Library) | `cd frontend && npm test` | 108 |
+
+### Backend
+
+| Kind | What it covers |
+|---|---|
+| **Unit** (`CandidateServiceTest`) | Defaults, name and skill cleanup, duplicate-email mapping, paging limits and sort order, stats arithmetic, not-found handling. The repository is mocked. |
+| **Web layer** (`CandidateControllerTest`) | Routes, request validation, binding of every query parameter, status codes and error bodies. The service is mocked. |
+| **Integration** (`CandidateCrudIntegrationTest`, `CandidateSearchIntegrationTest`, `CandidateStatsIntegrationTest`) | The real application against a real PostgreSQL: create, read, update and delete, email normalization, duplicate emails (including 10 simultaneous creates), every filter and combination of filters, pagination, and the stats cache (hit, and eviction on create, update and delete). |
+| **Schema guard** (`CandidateSchemaIntegrationTest`) | The indexes exist, and the query shapes the filters generate are ones PostgreSQL can answer from them. It would fail if a filter were rewritten into a form that can no longer use an index. |
+
+How the integration tests work:
+
+- They start an **embedded PostgreSQL 18.7** (the same version as the production database) using [zonky embedded-postgres](https://github.com/zonkyio/embedded-postgres). **No Docker and no network database are needed**, and the tests never connect to Neon.
+- H2 is deliberately not used: the filters rely on PostgreSQL-only features (`ILIKE`, `text[]`, native enums).
+- The test schema, `backend/src/test/resources/schema.sql`, is **generated from `schema.prisma`**, so it cannot drift from production. After changing `schema.prisma`, regenerate it with `npm run db:test-schema` (in `backend/`).
+- Every run starts a fresh database in your temp folder, which adds about 30 seconds on a typical laptop; the very first run also downloads the PostgreSQL binaries once. It runs as your normal user and cannot run as Administrator or root.
+- The database and test data live only for the duration of the test run.
+
+### Frontend
+
+Tests run in a simulated browser (jsdom) with no network. `fetch` is mocked, and the App tests use a small in-memory fake of the backend (`src/test/mockApi.js`).
+
+| Area | What it covers |
+|---|---|
+| API client | URL and query building (repeated `skills`, blank values omitted, paging), request shapes, error mapping, network failure |
+| Helpers | Date, initials and pluralization formatting |
+| Components | Tag input, pagination (range text, disabled edges, ellipsis windowing), filters (patches, status chips, clear), the add/edit form (validation, exact payload, server errors) |
+| App | Initial load, debounced search, paging, filters resetting to page 1, empty and error states, delete flow |
+
+These are not browser end-to-end tests, so real layout and styling are not covered by them.
+
 ## Development workflow
 
 ### Commands
@@ -436,13 +479,15 @@ Production build: `npm run build` outputs static files to `frontend/dist`. In pr
 | Where | Command | Purpose |
 |---|---|---|
 | `backend/` | `./mvnw spring-boot:run` | Start the API on :8080 |
-| `backend/` | `./mvnw test` | Run tests (see [limitations](#known-limitations)) |
+| `backend/` | `./mvnw test` | Run the backend tests (embedded PostgreSQL, see [Testing](#testing)) |
+| `backend/` | `npm run db:test-schema` | Regenerate the test database schema from `schema.prisma` |
 | `backend/` | `npm run db:validate` | Validate `schema.prisma` |
 | `backend/` | `npm run db:extensions` | Enable `pg_trgm` |
 | `backend/` | `npm run db:push` | Apply schema changes to the database |
 | `backend/` | `npm run db:backfill` | Normalize existing rows (email lowercase, `skills_search`) |
 | `backend/` | `npm run db:studio` | Open Prisma Studio to browse data |
 | `frontend/` | `npm run dev` | Dev server on :5173 |
+| `frontend/` | `npm test` / `npm run test:watch` | Run the frontend tests once / in watch mode |
 | `frontend/` | `npm run build` / `npm run preview` | Production build / serve it locally |
 
 ### Changing the schema
@@ -476,12 +521,13 @@ Run with `SPRING_JPA_SHOW_SQL=true` (see [Configuration](#configuration)) and ev
 | `Port 8080 was already in use` | Another instance is running. Stop it or set `SERVER_PORT=8081` (and `API_TARGET` for the frontend). |
 | Frontend shows "Cannot reach the server" | The backend isn't running, or `API_TARGET` points at the wrong port. |
 | `status=hired` returns 400 | Status values are uppercase. |
+| Backend tests fail while starting PostgreSQL | The embedded database needs a writable temp folder, permission to run the extracted `postgres` binary (some security software blocks it), and a normal non-admin user. |
 | Creating a candidate returns 409 | That email already exists. Emails are compared case-insensitively. |
 
 ## Known limitations
 
 - **No authentication or authorization.** Anyone who can reach the API can read and change data. There is also no rate limiting.
-- **Tests:** the only automated test is Spring's context-load test, and it connects to the configured database. There are no API or frontend test suites yet.
+- **Tests:** there are no browser end-to-end tests (the frontend is tested in a simulated browser), no load tests, and no CI workflow yet to run the suites on every push.
 - **Schema management** uses `prisma db push` and has no migration history. For a production workflow, baseline the database and move to `prisma migrate`.
 - **Deep pagination** uses offset paging, so very high page numbers get slower. Cursor-style paging would fix that.
 - **Stats** are a single aggregate that still reads every row (index-only). At very large sizes, maintained counters or a materialized view would be the next step.

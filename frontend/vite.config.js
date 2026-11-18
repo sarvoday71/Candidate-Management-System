@@ -11,4 +11,10 @@ export default defineConfig({
       '/api': process.env.API_TARGET || 'http://localhost:8080',
     },
   },
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.js',
+    css: false,
+    restoreMocks: true,
+  },
 })

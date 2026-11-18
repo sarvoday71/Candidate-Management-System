@@ -25,6 +25,7 @@ A full-stack application for tracking candidates through a hiring pipeline. A **
 - [Troubleshooting](#troubleshooting)
 - [Known limitations](#known-limitations)
 - [Technical design document](docs/technical-design.md)
+- [How I used AI to build this project](docs/ai-usage-guide.md)
 
 ## Screenshots
 
